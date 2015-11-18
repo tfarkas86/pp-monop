@@ -10,39 +10,45 @@
 
 clear all
 
-%% initialize habitat conditions
+%% input model parameters
 
-nhabs = 1; % number of habitats
-npredsites = 100; % maximum number of predators per habitat
-maxprey = 9; % size of predator territory (max number of prey attacked)
-npreysites = npredsites * maxprey; % number of microsites per habitat
-
-%% initialize population parameters
-
-npredsp = 1; % number of predator species
 npreysp = 1; % number of prey species
+npredsp = 1; % number of predator species
+
+npredsites = 100; % maximum number of predators 
+maxprey = 9; % size of predator territory (max number of prey to attack)
+
+mort = [0.1]; % baseline predator mortality rates
+%mort = [0.1] .* ones(1, npredsp);
+
+ceff = [0.1]; % predator-prey conversion efficiencies, cols prey, row pred
+%ceff = [0.1] .* ones(npredsp, npreysp);
+
+attkm = [0.5]; % attack rate matrix, cols prey, rows predators
+%attkm = [0.5] .* ones(npredsp, npreysp); 
+
+birt = [0.1]; % prey birth rates
+%birt = [0.1] .* ones(1, npreysp);
+
+% starting number of prey and predators
+% nprey = [200]
+% npred = [20]
+
+%% derived quantities
+
+npreysites = npredsites * maxprey; % number of microsites per habitat
+nprey = ceil(npreysites / 2 / npreysp * ones(1, npreysp)); 
+npred = ceil(npredsites / 10 / npredsp * ones(1, npredsp)); 
 maxint = npredsp * npreysp * npreysites; % max p-p interactions
 
-mort = [0.1] .* ones(1, npredsp); % baseline predator mortality rates
+% make 3D attack rate array, where rows now are sites, cols still prey, 
+% and z-dimension is predator species (a for array)
+attka = repelem(permute(attkm, [3 2 1]), npreysites, 1, 1); 
 
-% initialize predator-prey conversion efficiencies
-ceff = [0.1] .* ones(npredsp, npreysp);
-
-% attack rates, first as 2D matrix with prey cols and pred rows
-% then as 3D array with sites as rows, prey cols, and pred z-dim
-attkm = [0.5] .* ones(npredsp, npreysp); % m for matrix
-attki = permute(attkm, [3 2 1]); % make 3D (i for intermediate)
-attka = repelem(attki, npreysites, 1, 1); % individual attack rates (a for array)
-
-birt = [.1] .* ones(1, npreysp); % prey birth rates
-
-%% initialize matrices to follow occupancy in sites
+%% initialize matrices to follow occupancy/abundance in sites
 
 preyocc = zeros(npreysites, npreysp); % occupancy of prey at their sites
 predoccp = zeros(npredsites, npredsp); % occupancy of predators
-
-nprey = ceil(npreysites / 2 / npreysp * ones(1, npreysp)); % starting number of prey
-npred = ceil(npredsites / 10 / npredsp * ones(1, npredsp)); % starting number of predators
 
 % set initial locations of prey and predators
 preyloc = datasample(1:npreysites, sum(nprey), 'Replace', false); % prey
