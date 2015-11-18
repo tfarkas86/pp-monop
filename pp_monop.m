@@ -59,7 +59,7 @@ predoccp(lind) = 1; % fill in predators
 % presence of a predator
 
 %% start time loop
-time = 10000;
+time = 1000;
 
 % output matrices
 outpred = zeros(time, npredsp + 1); % open predator matrix
@@ -151,4 +151,7 @@ for i = 2:time;
     outprey(i, 2:npredsp + 1) = sum(preyocc);
 end
 
-plot(1:time, outpred(:,2), 1:time, outprey(:,2))
+hold on
+plot(1:time, outprey(:,2))
+plot(1:time, outpred(:,2))
+hold off
