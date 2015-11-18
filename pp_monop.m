@@ -23,14 +23,14 @@ npredsp = 1; % number of predator species
 npreysp = 1; % number of prey species
 maxint = npredsp * npreysp * npreysites; % max p-p interactions
 
-mort = [0.2] .* ones(1, npredsp); % baseline predator mortality rates
+mort = [0.1] .* ones(1, npredsp); % baseline predator mortality rates
 
 % initialize predator-prey conversion efficiencies
 ceff = [0.1] .* ones(npredsp, npreysp);
 
 % attack rates, first as 2D matrix with prey cols and pred rows
 % then as 3D array with sites as rows, prey cols, and pred z-dim
-attkm = [0.9] .* ones(npredsp, npreysp); % m for matrix
+attkm = [0.5] .* ones(npredsp, npreysp); % m for matrix
 attki = permute(attkm, [3 2 1]); % make 3D (i for intermediate)
 attka = repelem(attki, npreysites, 1, 1); % individual attack rates (a for array)
 
@@ -58,13 +58,8 @@ predoccp(lind) = 1; % fill in predators
 % make prey-site sized matrix showing which sites are threatened by the
 % presence of a predator
 
-predocc = permute(predoccp, [1 3 2]); % z-dimension predator species
-predocc3D = repelem(predocc, maxprey, 1, 1);
-predocc = permute(predocc3D, [1, 3, 2]);
-predoccrep = repmat(predocc3D, 1, npreysp, 1); % expand for all prey sp.
-preyoccrep = repmat(preyocc, 1, 1, npredsp);
 %% start time loop
-time = 100;
+time = 10000;
 
 % output matrices
 outpred = zeros(time, npredsp + 1); % open predator matrix
@@ -76,9 +71,19 @@ outprey(1, 2:npreysp+1) = nprey; % input starting prey abundances
 
 for i = 2:time;
     
-    %% predators eat some prey
+    %% reformat predator and prey matrices
     
+    predocc = permute(predoccp, [1 3 2]); % z-dimension predator species
+    predocc3D = repelem(predocc, maxprey, 1, 1);
+    predocc = permute(predocc3D, [1, 3, 2]);
+   
+    predoccrep = repmat(predocc3D, 1, npreysp, 1); % expand for all prey sp.
+   
     % expand for pred sp.
+    preyoccrep = repmat(preyocc, 1, 1, npredsp);
+    
+    %% predators eat some prey
+      
     meet = preyoccrep .* predoccrep; % check for predator-prey encounters
     
     % random numbers to check against attack rate
