@@ -12,22 +12,22 @@ clear all
 
 %% input model parameters
 
-npreysp = 1; % number of prey species
+npreysp = 2; % number of prey species
 npredsp = 1; % number of predator species
 
-npredsites = 100; % maximum number of predators 
-maxprey = 9; % size of predator territory (max number of prey to attack)
+npredsites = 500; % maximum number of predators 
+maxprey = 10; % size of predator territory (max number of prey to attack)
 
 mort = [0.1]; % baseline predator mortality rates
 %mort = [0.1] .* ones(1, npredsp);
 
-ceff = [0.1]; % predator-prey conversion efficiencies, cols prey, row pred
+ceff = [0.1, .1]; % conversion efficiencies, cols prey, row preds
 %ceff = [0.1] .* ones(npredsp, npreysp);
 
-attkm = [0.5]; % attack rate matrix, cols prey, rows predators
+attkm = [.3, .6]; % attack rate matrix, cols prey, rows predators
 %attkm = [0.5] .* ones(npredsp, npreysp); 
 
-birt = [0.1]; % prey birth rates
+birt = [.1, .3]; % prey birth rates
 %birt = [0.1] .* ones(1, npreysp);
 
 % starting number of prey and predators
@@ -65,7 +65,7 @@ predoccp(lind) = 1; % fill in predators
 % presence of a predator
 
 %% start time loop
-time = 1000;
+time = 2000;
 
 % output matrices
 outpred = zeros(time, npredsp + 1); % open predator matrix
@@ -154,10 +154,12 @@ for i = 2:time;
     predoccp(lind) = 1; % fill in prey
     
     outpred(i, 2:npredsp + 1) = sum(predoccp);
-    outprey(i, 2:npredsp + 1) = sum(preyocc);
+    outprey(i, 2:npreysp + 1) = sum(preyocc);
 end
 
+% plot abundance over time
+close
 hold on
-plot(1:time, outprey(:,2))
-plot(1:time, outpred(:,2))
-hold off
+plot(1:time, outprey(:, 2), '-r')
+plot(1:time, outprey(:, 3), '-b')
+plot(1:time, outpred(:, 2), '--k')
