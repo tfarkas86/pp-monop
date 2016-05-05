@@ -5,7 +5,7 @@
 #
 # writen by Tim Farkas, 2015/16 after Mark Urban model 2009
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  
+
 # Model Parameters ----
 
 npreysp <- 2 # number of prey species
@@ -20,6 +20,7 @@ ceff <- matrix(0.1, nrow=npredsp, ncol=npreysp)
 
 # attkm <-  c(.9; .1) # attack rate matrix, cols prey, rows predators
 attk <- matrix(0.5, nrow=npredsp, ncol=npreysp)
+attk <- .5
 
 nalls <- 20 # number of alleles
 
@@ -39,7 +40,7 @@ preymat <- matrix(0, nrow=nsites, ncol=nalls + 1,
 # predator array has unlimiting spaces for predators (rows), alleles (cols)
 # and 3rd dimension is for multiple predator species
 predmat <- array(0, dim=c(maxpred, nalls + 1, npredsp), 
-                  dimnames=list(predator=NULL, allele=NULL, species=NULL))
+                 dimnames=list(predator=NULL, allele=NULL, species=NULL))
 
 # specify number of prey and predators
 # number of prey is 1/10 number of sites
@@ -88,27 +89,57 @@ makeMats <- function(npredsp=1, npreysp=1, nsites=50, imaxpred=50,
   
 }
 
-npreds <- colSums(mats$predmat[,1,]) # how many predators of each species
+npreds <- sum(mats$predmat[,1,]) # how many predators of each species
 npreys <- sum(mats$preymat[mats$preymat[,1] > 0,1]) # how many total prey?
 
 # encrt is function to calculate proportion of prey that will be encountered 
 # by at least one predator. uses recursion to subtract out probability of 
-# predators overlapping
+# predators overlapping when penal = TRUE
 
-encrt <- function(preds=1, prey=1, locs=10, arr=1, ...) {
+encrt <- function(mat, arr=1, penal=FALSE) {
   
-  if (arr == preds) {
-    return(choose(preds, arr) * (prey / locs) ^ arr) }
+  pred <- sum(mat$predmat[,1,])
+  prey <- sum(mat$preymat[mat$preymat[,1] > 0, 1])
+  locs <- nrow(mat$preymat)
   
-  else {
-    return(choose(preds, arr) * (prey / locs) ^ arr - 
-             encrt(preds=preds, prey=prey, locs=locs, arr=arr + 1))}
+  if (penal==TRUE) {
+    
+    if (arr == pred) {
+      return(choose(pred, arr) * (prey / locs) ^ arr) }
+    
+    else {
+      return(choose(pred, arr) * (prey / locs) ^ arr - 
+               encrt(mat=mat, arr=arr + 1))} }
+  
+  else { 
+    return(pred * prey / locs)
+  }
   
 }
 
-depred <- function() {
+mat <- makeMats(nprey=20, npred=5)
+
+# killprey function takes a matrix of predators and prey, compares phenotypes 
+# using allele information, integrates a baseline attack rate (attk) and kills
+# prey in the preymat by setting all values to 0, returning a full object
+# with both predator and prey matrices
+
+killprey <- function(mat, attk=.5) {
   
+  nenc <- ifelse(encrt(mat=mat) < 1, rbinom(1, 1, prob=encrt(mat=mat)), 
+                 round(encrt(mat=mat))) # number of predator-prey encounters
   
+  preyind <- which(mat$preymat[,1] > 0, arr.ind=TRUE) # which locations are inhabited by prey
+  predind <- which(mat$predmat[,1,] > 0, arr.ind=TRUE) # by predators
+  
+  emat <- cbind(prey=sample(preyind, nenc), pred=sample(predind, nenc)) # encounter matrix
+  amat <- attk +  rowMeans((mat$preymat[emat[,1], 2:21])) -
+    rowMeans((mat$predmat[emat[,2], 2:21,])) # attack rate matrix
+  emat <- cbind(emat, kill=amat > runif(nenc, 0, 1)) # find successful attacks
+  
+  mat$preymat[emat[,1],] <- mat$preymat[emat[,1],] * (1 - emat[,3]) 
+  
+  return(mat)
   
 }
 
@@ -119,7 +150,10 @@ depred <- function() {
 
 
 
- 
+
+
+
+
 # attkmin = 0.1; % minimum attack rate
 # attkmax = 0.9; % maximum attack rate
 # 
