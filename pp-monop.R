@@ -88,6 +88,34 @@ makeMats <- function(npredsp=1, npreysp=1, nsites=50, imaxpred=50,
   
 }
 
+npreds <- colSums(mats$predmat[,1,]) # how many predators of each species
+npreys <- sum(mats$preymat[mats$preymat[,1] > 0,1]) # how many total prey?
+
+# encrt is function to calculate proportion of prey that will be encountered 
+# by at least one predator. uses recursion to subtract out probability of 
+# predators overlapping
+
+encrt <- function(preds=1, prey=1, locs=10, arr=1, ...) {
+  
+  if (arr == preds) {
+    return(choose(preds, arr) * (prey / locs) ^ arr) }
+  
+  else {
+    return(choose(preds, arr) * (prey / locs) ^ arr - 
+             encrt(preds=preds, prey=prey, locs=locs, arr=arr + 1))}
+  
+}
+
+depred <- function() {
+  
+  
+  
+}
+
+
+
+
+
 
 
 
