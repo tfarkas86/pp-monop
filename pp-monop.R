@@ -74,17 +74,21 @@ makeMats <- function(npredsp=1, npreysp=1, nsites=50, imaxpred=50,
                     dimnames=list(sites=NULL, attributes=c("spp", 1:nalls)))
   # predator matrix is 3D array with rows as locations, columns as occupancy 
   # (0 or 1) and 20 loci, and depth as predator species
-  predmat <- array(0, dim=c(imaxpred, nalls + 1, npredsp), 
-                   dimnames=list(predator=NULL, attributes=c("occ", 1:nalls), 
-                                 species=NULL))
+  predmat <- matrix(0, nrow=imaxpred, ncol=nalls + 1, 
+                    dimnames=list(sites=NULL, attributes=c("spp", 1:nalls)))
   
   ipreysp <- rep(1:npreysp, nprey) # initial prey species identities
   preymat[1:length(ipreysp), 1] <- ipreysp # add species to prey matrix
   
-  ipredsp <- matrix(1, nrow=npred, npredsp) # initial predator species 
-  predmat[1:nrow(ipredsp), 1, 1:ncol(ipredsp)] <- ipredsp # add predators
+  ipredsp <- rep(1:npredsp, npred) # initial predator species identities
+  predmat[1:length(ipredsp), 1] <- ipredsp # add predators
   
-  mats <- list(preymat=preymat, predmat=predmat)
+  encmat <- matrix(0, ncol=3, nrow=nsites, # encounter matrix
+                   dimnames=list(NULL, c("prey", "pred", "kill")))
+  
+  mats <- list(preymat=preymat, 
+               predmat=predmat, 
+               encmat=encmat)
   return(mats)
   
 }
@@ -96,23 +100,23 @@ npreys <- sum(mats$preymat[mats$preymat[,1] > 0,1]) # how many total prey?
 # by at least one predator. uses recursion to subtract out probability of 
 # predators overlapping when penal = TRUE
 
-encrt <- function(mat, arr=1, penal=FALSE) {
+encrt <- function(mat, arr=1, penal=FALSE, search=1) {
   
-  pred <- sum(mat$predmat[,1,])
+  pred <- sum(mat$predmat[,1])
   prey <- sum(mat$preymat[mat$preymat[,1] > 0, 1])
   locs <- nrow(mat$preymat)
   
   if (penal==TRUE) {
     
     if (arr == pred) {
-      return(choose(pred, arr) * (prey / locs) ^ arr) }
+      return(search * choose(pred, arr) * (prey / locs) ^ arr) }
     
     else {
-      return(choose(pred, arr) * (prey / locs) ^ arr - 
+      return(search * choose(pred, arr) * (prey / locs) ^ arr - 
                encrt(mat=mat, arr=arr + 1))} }
   
   else { 
-    return(pred * prey / locs)
+    return(search * pred * prey / locs)
   }
   
 }
@@ -124,26 +128,105 @@ mat <- makeMats(nprey=20, npred=5)
 # prey in the preymat by setting all values to 0, returning a full object
 # with both predator and prey matrices
 
-killprey <- function(mat, attk=.5) {
+killprey <- function(mat, attk=.5, ...) {
   
-  nenc <- ifelse(encrt(mat=mat) < 1, rbinom(1, 1, prob=encrt(mat=mat)), 
-                 round(encrt(mat=mat))) # number of predator-prey encounters
+  nenc <- ifelse(encrt(mat=mat, ...) < 1, rbinom(1, 1, prob=encrt(mat=mat, ...)), 
+                 round(encrt(mat=mat, ...))) # number of predator-prey encounters
   
   preyind <- which(mat$preymat[,1] > 0, arr.ind=TRUE) # which locations are inhabited by prey
-  predind <- which(mat$predmat[,1,] > 0, arr.ind=TRUE) # by predators
+  predind <- which(mat$predmat[,1] > 0, arr.ind=TRUE) # by predators
   
-  emat <- cbind(prey=sample(preyind, nenc), pred=sample(predind, nenc)) # encounter matrix
+  emat <- cbind(prey=sample(preyind, nenc), 
+                pred=sample(predind, nenc, replace=TRUE)) # encounter matrix
   amat <- attk +  rowMeans((mat$preymat[emat[,1], 2:21])) -
-    rowMeans((mat$predmat[emat[,2], 2:21,])) # attack rate matrix
+    rowMeans((mat$predmat[emat[,2], 2:21])) # attack rate matrix
   emat <- cbind(emat, kill=amat > runif(nenc, 0, 1)) # find successful attacks
   
   mat$preymat[emat[,1],] <- mat$preymat[emat[,1],] * (1 - emat[,3]) 
   
+  mat$encmat[,] <- 0
+  mat$encmat[1:nrow(emat),] <- emat
   return(mat)
   
 }
 
+##
+birthpred <- function(mat, ceff=1, overlap=FALSE, mrt=0.2) {
+  
+  kills <- aggregate(mat$encmat[,3], FUN=sum, by=list(mat$encmat[,2])) # get kills
+  kills$off <- ceff * kills$x # count offspring using conversion efficiency
+  off <- mat$predmat[rep(kills[,1], kills$off),] # get offspring
+  
+  if(overlap == TRUE) { # if overlapping generations
+    
+    surv <- which(mat$predmat[,1] > 0) # get indices parent predators
+    nsurv <- length(surv) # get number of parents
+    thresh <- runif(surv, 0, 1) # make threshold
+    die <- ifelse(thresh <= mrt, 0, 1) # find dead parents
+    mat$predmat[surv,] <- mat$predmat[surv,] * die # kill parents
+    
+    osites <- which(mat$predmat[,1] == 0) # indices of open sites
+    nosites <- length(osites) # number of open sites
+    noff <- nrow(off) # number of offspring
+    
+    if (nosites > noff) { # if number of open sites exceeds number of offspring
+      
+      mat$predmat[osites[1:noff],] <- off # fill empty sites from top down
+    } 
+    
+    else { # if not enough sites
+      
+      off <- off[sample(1:noff, nosites),] # randomly select offspring  
+      mat$predmat[osites[1:nosites]] <- off # fill all sites
+    }
+  }
+  
+  else { # if non-overlapping generations
+    
+    mat$predmat[,] <- 0 # kill all predators
+    mat$predmat[1:nrow(off),] <- off # fill in offspring form top down
+  }
+  
+  return(mat)
+}
 
+##
+birthprey <- function(mat, brt=2, overlap=FALSE) {
+  
+  surv <- which(mat$preymat[,1] > 0) # indeces for surviving prey
+  off <- mat$preymat[rep(surv, brt),] # matrix of new offspring
+  
+  if(overlap == TRUE) { # if overlapping generations
+    
+    osites <- which(mat$preymat[,1] == 0) # indeces of open sites
+    nosites <- length(osites) # number of open sites
+    noff <- nrow(off) # number of offspring
+    
+    if (noff <= nosites) { # if number of open sites exceeds number of offspring
+      
+      mat$preymat[osites[1:noff],] <- off # fill open sites with offspring  
+    }
+    
+    else { # if number of sites is limiting
+      
+      off <- off[sample(1:noff, nosites),] # randomly select offspring
+      mat$preymat[osites[1:nosites]] <- off # fill all open sites from top down
+    }
+  }
+  
+  else { # if generations are non-overlapping
+    
+    mat$preymat[,] <- 0 # kill all prey
+    mat$preymat[1:nrow(off),] <- off # fill open sites with offspring
+  }
+  
+  return(mat)
+}
+
+mat <- makeMats(nsite=200, nprey=50, npred=5)
+mat <- killprey(mat, search=10)
+mat <- birthpred(mat, overlap=FALSE)
+mat <- birthprey(mat, brt=2, overlap=FALSE)
 
 
 
